@@ -1,0 +1,203 @@
+# Kibana Configuration for Enterprise Security Platform
+# Optimized for security operations center (SOC) use
+
+# Server settings
+server.port: 5601
+server.host: "0.0.0.0"
+server.name: "enterprise-security-kibana"
+server.basePath: ""
+server.rewriteBasePath: false
+
+# Elasticsearch connection
+elasticsearch.hosts: ["http://elasticsearch:9200"]
+elasticsearch.username: "kibana_system"
+elasticsearch.password: "${KIBANA_PASSWORD}"
+
+# Security settings
+elasticsearch.ssl.verificationMode: certificate
+elasticsearch.ssl.certificateAuthorities: ["/usr/share/kibana/config/certs/ca.crt"]
+
+xpack.security.enabled: true
+xpack.security.encryptionKey: "something_at_least_32_characters_long"
+xpack.security.session.idleTimeout: "1h"
+xpack.security.session.lifespan: "8h"
+
+# Authentication
+xpack.security.authc.providers:
+  basic.basic1:
+    order: 0
+  saml.saml1:
+    order: 1
+    realm: "saml_realm"
+
+# Monitoring
+xpack.monitoring.enabled: true
+xpack.monitoring.kibana.collection.enabled: true
+xpack.monitoring.ui.container.elasticsearch.enabled: true
+
+# Reporting
+xpack.reporting.enabled: true
+xpack.reporting.encryptionKey: "something_at_least_32_characters_long"
+xpack.reporting.kibanaServer.hostname: "kibana.security.enterprise.com"
+xpack.reporting.kibanaServer.port: 5601
+
+# Alerting
+xpack.alerting.enabled: true
+xpack.actions.enabled: true
+xpack.actions.allowedHosts: ["*"]
+
+# Machine Learning
+xpack.ml.enabled: true
+
+# Canvas
+xpack.canvas.enabled: true
+
+# Maps
+xpack.maps.enabled: true
+xpack.maps.showMapVisualizationTypes: true
+
+# Graph
+xpack.graph.enabled: true
+
+# APM
+xpack.apm.enabled: false
+
+# Uptime
+xpack.uptime.enabled: true
+
+# Infra
+xpack.infra.enabled: true
+
+# Logs
+xpack.logs.enabled: true
+
+# SIEM
+xpack.siem.enabled: true
+xpack.siem.defaultIndex: ["security-*"]
+
+# Case Management
+xpack.cases.enabled: true
+
+# Fleet
+xpack.fleet.enabled: true
+
+# Osquery
+xpack.osquery.enabled: true
+
+# Performance settings
+elasticsearch.requestTimeout: 30000
+elasticsearch.shardTimeout: 30000
+elasticsearch.pingTimeout: 1500
+
+# Logging
+logging.appenders:
+  file:
+    type: file
+    fileName: /var/log/kibana/kibana.log
+    layout:
+      type: json
+  console:
+    type: console
+    layout:
+      type: pattern
+      pattern: "[%date][%level][%logger] %message"
+
+logging.loggers:
+  - name: http.server.response
+    level: debug
+    appenders: [file]
+  - name: elasticsearch.query
+    level: debug
+    appenders: [file]
+
+logging.root:
+  appenders: [file, console]
+  level: info
+
+# UI settings
+server.maxPayloadBytes: 1048576
+csp.strict: true
+csp.warnLegacyBrowsers: true
+
+# Advanced settings for security operations
+map.includeElasticMapsService: true
+map.proxyElasticMapsServiceInMaps: false
+map.regionmap.includeElasticMapsService: true
+map.tilemap.url: "https://tiles.elastic.co/v2/default/{z}/{x}/{y}.png?elastic_tile_service_tos=agree&my_app_name=kibana"
+
+# Index patterns for security data
+kibana.defaultAppId: "securitySolution"
+kibana.index: ".kibana"
+
+# Saved objects encryption
+xpack.encryptedSavedObjects.encryptionKey: "something_at_least_32_characters_long"
+
+# Spaces
+xpack.spaces.enabled: true
+xpack.spaces.maxSpaces: 1000
+
+# License management
+xpack.license_management.enabled: true
+
+# Index lifecycle management
+xpack.ilm.enabled: true
+
+# Rollup
+xpack.rollup.enabled: true
+
+# Cross cluster search
+xpack.ccr.enabled: true
+
+# Snapshot and restore
+xpack.snapshot_restore.enabled: true
+
+# Watcher
+xpack.watcher.enabled: true
+
+# Data enhanced table
+data_enhanced_table.enabled: true
+
+# Newsfeed
+newsfeed.enabled: false
+
+# Telemetry
+telemetry.enabled: false
+telemetry.optIn: false
+
+# Usage collection
+usageCollection.uiCounters.enabled: false
+
+# Home page
+home.disableWelcomeScreen: true
+
+# Discover
+discover.searchOnPageLoad: true
+
+# Visualizations
+visualizations.enableLabs: true
+
+# Dashboard
+dashboard.allowByValueEmbeddables: true
+
+# Dev tools
+console.enabled: true
+searchprofiler.enabled: true
+grokdebugger.enabled: true
+painless_lab.enabled: true
+
+# Timelion
+timelion.enabled: true
+
+# Regional settings
+i18n.locale: "en"
+
+# Custom branding
+server.customResponseHeaders:
+  "X-Frame-Options": "DENY"
+  "X-Content-Type-Options": "nosniff"
+  "X-XSS-Protection": "1; mode=block"
+  "Strict-Transport-Security": "max-age=31536000; includeSubDomains"
+
+# Memory circuit breaker
+ops.cGroupOverrides.cpuPath: "/sys/fs/cgroup/cpu"
+ops.cGroupOverrides.cpuAcctPath: "/sys/fs/cgroup/cpuacct"

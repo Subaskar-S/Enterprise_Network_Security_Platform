@@ -1,0 +1,68 @@
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: default-mtls
+  namespace: istio-system
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: workload-mtls
+  namespace: production
+spec:
+  mtls:
+    mode: STRICT
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: staging-mtls
+  namespace: staging
+spec:
+  mtls:
+    mode: STRICT
+---
+# Specific workload authentication for high-security services
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: payment-service-mtls
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: payment-service
+  mtls:
+    mode: STRICT
+  portLevelMtls:
+    8443:
+      mode: STRICT
+---
+# Database services require strict mTLS
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: database-mtls
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      tier: database
+  mtls:
+    mode: STRICT
+---
+# Admin services with enhanced authentication
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: admin-services-mtls
+  namespace: admin
+spec:
+  selector:
+    matchLabels:
+      security-level: high
+  mtls:
+    mode: STRICT

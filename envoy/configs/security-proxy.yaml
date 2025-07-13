@@ -1,0 +1,308 @@
+admin:
+  address:
+    socket_address:
+      protocol: TCP
+      address: 127.0.0.1
+      port_value: 9901
+  
+static_resources:
+  listeners:
+  - name: security_listener
+    address:
+      socket_address:
+        protocol: TCP
+        address: 0.0.0.0
+        port_value: 8080
+    filter_chains:
+    - filters:
+      - name: envoy.filters.network.http_connection_manager
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+          stat_prefix: security_proxy
+          codec_type: AUTO
+          route_config:
+            name: local_route
+            virtual_hosts:
+            - name: security_service
+              domains: ["*"]
+              routes:
+              - match:
+                  prefix: "/api/v1/threats"
+                route:
+                  cluster: threat_detection_cluster
+                  timeout: 30s
+                request_headers_to_add:
+                - header:
+                    key: x-envoy-upstream-rq-timeout-ms
+                    value: "30000"
+                - header:
+                    key: x-security-context
+                    value: "threat-detection"
+              - match:
+                  prefix: "/api/v1/auth"
+                route:
+                  cluster: auth_cluster
+                  timeout: 10s
+                request_headers_to_add:
+                - header:
+                    key: x-envoy-upstream-rq-timeout-ms
+                    value: "10000"
+              - match:
+                  prefix: "/health"
+                route:
+                  cluster: health_cluster
+                  timeout: 5s
+          http_filters:
+          - name: envoy.filters.http.wasm
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+              config:
+                name: "security_filter"
+                root_id: "security_filter"
+                vm_config:
+                  vm_id: "security_filter"
+                  runtime: "envoy.wasm.runtime.v8"
+                  code:
+                    local:
+                      inline_string: |
+                        class SecurityFilter {
+                          constructor(rootContext) {
+                            this.rootContext = rootContext;
+                          }
+                          
+                          onRequestHeaders() {
+                            const userAgent = this.getRequestHeader("user-agent");
+                            const xForwardedFor = this.getRequestHeader("x-forwarded-for");
+                            
+                            // Block suspicious user agents
+                            if (userAgent && (userAgent.includes("bot") || userAgent.includes("crawler"))) {
+                              this.sendLocalResponse(403, "Forbidden", "Suspicious user agent", []);
+                              return FilterHeadersStatus.StopIteration;
+                            }
+                            
+                            // Add security headers
+                            this.addRequestHeader("x-request-id", this.generateRequestId());
+                            this.addRequestHeader("x-timestamp", Date.now().toString());
+                            
+                            return FilterHeadersStatus.Continue;
+                          }
+                          
+                          onResponseHeaders() {
+                            this.addResponseHeader("x-content-type-options", "nosniff");
+                            this.addResponseHeader("x-frame-options", "DENY");
+                            this.addResponseHeader("x-xss-protection", "1; mode=block");
+                            this.addResponseHeader("strict-transport-security", "max-age=31536000; includeSubDomains");
+                            return FilterHeadersStatus.Continue;
+                          }
+                          
+                          generateRequestId() {
+                            return Math.random().toString(36).substring(2, 15);
+                          }
+                        }
+          - name: envoy.filters.http.rate_limit
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ratelimit.v3.RateLimit
+              domain: security_platform
+              stage: 0
+              request_type: both
+              timeout: 0.25s
+              failure_mode_deny: false
+              rate_limit_service:
+                grpc_service:
+                  envoy_grpc:
+                    cluster_name: rate_limit_cluster
+                transport_api_version: V3
+          - name: envoy.filters.http.jwt_authn
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.jwt_authn.v3.JwtAuthentication
+              providers:
+                security_platform_jwt:
+                  issuer: "https://auth.security.enterprise.com"
+                  audiences:
+                  - "security-platform-api"
+                  remote_jwks:
+                    http_uri:
+                      uri: "https://auth.security.enterprise.com/.well-known/jwks.json"
+                      cluster: auth_cluster
+                      timeout: 5s
+                    cache_duration: 300s
+                  forward: true
+                  from_headers:
+                  - name: Authorization
+                    value_prefix: "Bearer "
+              rules:
+              - match:
+                  prefix: "/api/v1/"
+                requires:
+                  provider_name: "security_platform_jwt"
+          - name: envoy.filters.http.rbac
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.rbac.v3.RBAC
+              rules:
+                action: ALLOW
+                policies:
+                  "admin_access":
+                    permissions:
+                    - header:
+                        name: ":path"
+                        string_match:
+                          prefix: "/admin/"
+                    principals:
+                    - metadata:
+                        filter: "envoy.filters.http.jwt_authn"
+                        path:
+                        - key: "security_platform_jwt"
+                        - key: "role"
+                        value:
+                          string_match:
+                            exact: "admin"
+                  "api_access":
+                    permissions:
+                    - header:
+                        name: ":path"
+                        string_match:
+                          prefix: "/api/v1/"
+                    principals:
+                    - metadata:
+                        filter: "envoy.filters.http.jwt_authn"
+                        path:
+                        - key: "security_platform_jwt"
+                        - key: "sub"
+          - name: envoy.filters.http.router
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+      transport_socket:
+        name: envoy.transport_sockets.tls
+        typed_config:
+          "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext
+          common_tls_context:
+            tls_certificates:
+            - certificate_chain:
+                filename: "/etc/ssl/certs/server.crt"
+              private_key:
+                filename: "/etc/ssl/private/server.key"
+            validation_context:
+              trusted_ca:
+                filename: "/etc/ssl/certs/ca.crt"
+              verify_certificate_spki:
+              - "sha256/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+              verify_certificate_hash:
+              - "sha256/BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB="
+            alpn_protocols:
+            - "h2"
+            - "http/1.1"
+  
+  clusters:
+  - name: threat_detection_cluster
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: LEAST_REQUEST
+    load_assignment:
+      cluster_name: threat_detection_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: threat-detection-service.production.svc.cluster.local
+                port_value: 8080
+    health_checks:
+    - timeout: 1s
+      interval: 10s
+      unhealthy_threshold: 3
+      healthy_threshold: 2
+      http_health_check:
+        path: "/health"
+        expected_statuses:
+        - start: 200
+          end: 299
+    circuit_breakers:
+      thresholds:
+      - priority: DEFAULT
+        max_connections: 100
+        max_pending_requests: 50
+        max_requests: 200
+        max_retries: 3
+    outlier_detection:
+      consecutive_5xx: 3
+      consecutive_gateway_failure: 3
+      interval: 30s
+      base_ejection_time: 30s
+      max_ejection_percent: 50
+      min_health_percent: 50
+    transport_socket:
+      name: envoy.transport_sockets.tls
+      typed_config:
+        "@type": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext
+        common_tls_context:
+          tls_certificates:
+          - certificate_chain:
+              filename: "/etc/ssl/certs/client.crt"
+            private_key:
+              filename: "/etc/ssl/private/client.key"
+          validation_context:
+            trusted_ca:
+              filename: "/etc/ssl/certs/ca.crt"
+  
+  - name: auth_cluster
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: auth_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: auth-service.production.svc.cluster.local
+                port_value: 8080
+    health_checks:
+    - timeout: 1s
+      interval: 5s
+      unhealthy_threshold: 2
+      healthy_threshold: 2
+      http_health_check:
+        path: "/health"
+    circuit_breakers:
+      thresholds:
+      - priority: DEFAULT
+        max_connections: 50
+        max_pending_requests: 25
+        max_requests: 100
+        max_retries: 2
+  
+  - name: health_cluster
+    connect_timeout: 0.1s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: health_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: health-service.production.svc.cluster.local
+                port_value: 8080
+    health_checks:
+    - timeout: 0.5s
+      interval: 5s
+      unhealthy_threshold: 2
+      healthy_threshold: 1
+      http_health_check:
+        path: "/health"
+  
+  - name: rate_limit_cluster
+    connect_timeout: 0.25s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: rate_limit_cluster
+      endpoints:
+      - lb_endpoints:
+        - endpoint:
+            address:
+              socket_address:
+                address: rate-limit-service.production.svc.cluster.local
+                port_value: 8081

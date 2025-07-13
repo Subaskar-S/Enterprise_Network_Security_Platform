@@ -1,0 +1,168 @@
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: security-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: security-platform-tls
+    hosts:
+    - security.enterprise.com
+    - api.security.enterprise.com
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - security.enterprise.com
+    - api.security.enterprise.com
+    tls:
+      httpsRedirect: true
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: admin-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 8443
+      name: admin-https
+      protocol: HTTPS
+    tls:
+      mode: MUTUAL
+      credentialName: admin-mtls-certs
+    hosts:
+    - admin.security.enterprise.com
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: monitoring-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 9443
+      name: monitoring-https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: monitoring-tls
+    hosts:
+    - kibana.security.enterprise.com
+    - grafana.security.enterprise.com
+    - prometheus.security.enterprise.com
+---
+# Egress gateway for external API calls
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: egress-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: egressgateway
+  servers:
+  - port:
+      number: 443
+      name: tls
+      protocol: TLS
+    tls:
+      mode: PASSTHROUGH
+    hosts:
+    - external-threat-intel.com
+    - security-updates.vendor.com
+    - compliance-api.auditor.com
+---
+# Internal service mesh gateway
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: mesh-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: eastwestgateway
+  servers:
+  - port:
+      number: 15443
+      name: tls
+      protocol: TLS
+    tls:
+      mode: ISTIO_MUTUAL
+    hosts:
+    - "*.local"
+    - "*.production.svc.cluster.local"
+    - "*.staging.svc.cluster.local"
+---
+# API Gateway with rate limiting
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: api-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 443
+      name: api-https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: api-tls-certs
+    hosts:
+    - api.security.enterprise.com
+---
+# WebSocket gateway for real-time monitoring
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: websocket-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 8080
+      name: websocket
+      protocol: HTTP
+    hosts:
+    - ws.security.enterprise.com
+---
+# Development environment gateway
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: dev-gateway
+  namespace: istio-system
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 8443
+      name: dev-https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: dev-tls-certs
+    hosts:
+    - dev.security.enterprise.com
+    - staging.security.enterprise.com

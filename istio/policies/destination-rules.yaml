@@ -1,0 +1,238 @@
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: default-mtls
+  namespace: production
+spec:
+  host: "*.production.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 30s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 10
+        maxRetries: 3
+        consecutiveGatewayErrors: 5
+        interval: 30s
+        baseEjectionTime: 30s
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minHealthPercent: 50
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: frontend-service
+  namespace: production
+spec:
+  host: frontend-service.production.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    loadBalancer:
+      simple: LEAST_CONN
+    connectionPool:
+      tcp:
+        maxConnections: 200
+        connectTimeout: 10s
+      http:
+        http1MaxPendingRequests: 100
+        http2MaxRequests: 200
+        maxRequestsPerConnection: 20
+        maxRetries: 3
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      consecutive5xxErrors: 3
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 30
+  portLevelSettings:
+  - port:
+      number: 8080
+    connectionPool:
+      tcp:
+        maxConnections: 150
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: backend-api-service
+  namespace: production
+spec:
+  host: backend-api-service.production.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 300
+        connectTimeout: 15s
+        tcpNoDelay: true
+      http:
+        http1MaxPendingRequests: 150
+        http2MaxRequests: 300
+        maxRequestsPerConnection: 30
+        maxRetries: 5
+        retryOn: gateway-error,connect-failure,refused-stream
+        perTryTimeout: 10s
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 50
+      minHealthPercent: 30
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: database-service
+  namespace: production
+spec:
+  host: database-service.production.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    loadBalancer:
+      simple: LEAST_CONN
+    connectionPool:
+      tcp:
+        maxConnections: 50
+        connectTimeout: 30s
+        tcpNoDelay: true
+      http:
+        http1MaxPendingRequests: 25
+        http2MaxRequests: 50
+        maxRequestsPerConnection: 5
+        maxRetries: 2
+        retryOn: connect-failure,refused-stream
+        perTryTimeout: 30s
+    outlierDetection:
+      consecutiveGatewayErrors: 2
+      consecutive5xxErrors: 2
+      interval: 60s
+      baseEjectionTime: 120s
+      maxEjectionPercent: 25
+      minHealthPercent: 75
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: payment-service
+  namespace: production
+spec:
+  host: payment-service.production.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+      caCertificates: /etc/ssl/certs/payment-ca.pem
+    loadBalancer:
+      simple: LEAST_CONN
+    connectionPool:
+      tcp:
+        maxConnections: 25
+        connectTimeout: 5s
+        tcpNoDelay: true
+      http:
+        http1MaxPendingRequests: 10
+        http2MaxRequests: 25
+        maxRequestsPerConnection: 1
+        maxRetries: 1
+        retryOn: connect-failure
+        perTryTimeout: 5s
+    outlierDetection:
+      consecutiveGatewayErrors: 1
+      consecutive5xxErrors: 1
+      interval: 10s
+      baseEjectionTime: 300s
+      maxEjectionPercent: 10
+      minHealthPercent: 90
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: admin-dashboard
+  namespace: admin
+spec:
+  host: admin-dashboard.admin.svc.cluster.local
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    loadBalancer:
+      simple: ROUND_ROBIN
+    connectionPool:
+      tcp:
+        maxConnections: 20
+        connectTimeout: 10s
+      http:
+        http1MaxPendingRequests: 10
+        http2MaxRequests: 20
+        maxRequestsPerConnection: 10
+        maxRetries: 2
+    outlierDetection:
+      consecutiveGatewayErrors: 3
+      consecutive5xxErrors: 3
+      interval: 30s
+      baseEjectionTime: 60s
+      maxEjectionPercent: 50
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: monitoring-services
+  namespace: monitoring
+spec:
+  host: "*.monitoring.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 15s
+      http:
+        http1MaxPendingRequests: 50
+        http2MaxRequests: 100
+        maxRequestsPerConnection: 20
+        maxRetries: 3
+    outlierDetection:
+      consecutiveGatewayErrors: 5
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 30
+---
+# External service destination rule with TLS origination
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: external-api-tls
+  namespace: production
+spec:
+  host: external-api.example.com
+  trafficPolicy:
+    tls:
+      mode: SIMPLE
+      sni: external-api.example.com
+    connectionPool:
+      tcp:
+        maxConnections: 10
+        connectTimeout: 30s
+      http:
+        http1MaxPendingRequests: 5
+        http2MaxRequests: 10
+        maxRequestsPerConnection: 2
+        maxRetries: 3
+        retryOn: gateway-error,connect-failure,refused-stream
+        perTryTimeout: 30s

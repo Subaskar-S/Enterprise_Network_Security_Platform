@@ -1,0 +1,299 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: security-platform-vs
+  namespace: production
+spec:
+  hosts:
+  - security.enterprise.com
+  - api.security.enterprise.com
+  gateways:
+  - istio-system/security-gateway
+  - mesh
+  http:
+  - match:
+    - uri:
+        prefix: /api/v1/auth
+    route:
+    - destination:
+        host: auth-service.production.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 10s
+    retries:
+      attempts: 3
+      perTryTimeout: 3s
+      retryOn: gateway-error,connect-failure,refused-stream
+    headers:
+      request:
+        add:
+          x-security-context: "auth-service"
+          x-request-timestamp: "%START_TIME%"
+  - match:
+    - uri:
+        prefix: /api/v1/threats
+    route:
+    - destination:
+        host: threat-detection-service.production.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 30s
+    retries:
+      attempts: 2
+      perTryTimeout: 15s
+    headers:
+      request:
+        add:
+          x-security-context: "threat-detection"
+  - match:
+    - uri:
+        prefix: /api/v1/incidents
+    route:
+    - destination:
+        host: incident-response-service.production.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 60s
+    headers:
+      request:
+        add:
+          x-security-context: "incident-response"
+  - match:
+    - uri:
+        prefix: /api/v1/compliance
+    route:
+    - destination:
+        host: compliance-service.production.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 120s
+    headers:
+      request:
+        add:
+          x-security-context: "compliance"
+  - match:
+    - uri:
+        prefix: /dashboard
+    route:
+    - destination:
+        host: frontend-service.production.svc.cluster.local
+        port:
+          number: 8080
+    headers:
+      request:
+        add:
+          x-security-context: "dashboard"
+  - match:
+    - uri:
+        prefix: /health
+    route:
+    - destination:
+        host: health-check-service.production.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 5s
+    headers:
+      request:
+        add:
+          x-security-context: "health-check"
+  - match:
+    - uri:
+        prefix: /metrics
+    route:
+    - destination:
+        host: metrics-service.production.svc.cluster.local
+        port:
+          number: 9090
+    timeout: 10s
+    headers:
+      request:
+        add:
+          x-security-context: "metrics"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: admin-dashboard-vs
+  namespace: admin
+spec:
+  hosts:
+  - admin.security.enterprise.com
+  gateways:
+  - istio-system/admin-gateway
+  - mesh
+  http:
+  - match:
+    - uri:
+        prefix: /admin/users
+    route:
+    - destination:
+        host: user-management-service.admin.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 30s
+    headers:
+      request:
+        add:
+          x-admin-context: "user-management"
+          x-require-admin-role: "true"
+  - match:
+    - uri:
+        prefix: /admin/policies
+    route:
+    - destination:
+        host: policy-management-service.admin.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 60s
+    headers:
+      request:
+        add:
+          x-admin-context: "policy-management"
+  - match:
+    - uri:
+        prefix: /admin/audit
+    route:
+    - destination:
+        host: audit-service.admin.svc.cluster.local
+        port:
+          number: 8080
+    timeout: 120s
+    headers:
+      request:
+        add:
+          x-admin-context: "audit"
+  - match:
+    - uri:
+        prefix: /admin
+    route:
+    - destination:
+        host: admin-dashboard-service.admin.svc.cluster.local
+        port:
+          number: 8080
+    headers:
+      request:
+        add:
+          x-admin-context: "dashboard"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: monitoring-vs
+  namespace: monitoring
+spec:
+  hosts:
+  - kibana.security.enterprise.com
+  - grafana.security.enterprise.com
+  - prometheus.security.enterprise.com
+  gateways:
+  - istio-system/monitoring-gateway
+  http:
+  - match:
+    - headers:
+        host:
+          exact: kibana.security.enterprise.com
+    route:
+    - destination:
+        host: kibana.monitoring.svc.cluster.local
+        port:
+          number: 5601
+    timeout: 300s
+    headers:
+      request:
+        add:
+          x-monitoring-context: "kibana"
+  - match:
+    - headers:
+        host:
+          exact: grafana.security.enterprise.com
+    route:
+    - destination:
+        host: grafana.monitoring.svc.cluster.local
+        port:
+          number: 3000
+    timeout: 60s
+    headers:
+      request:
+        add:
+          x-monitoring-context: "grafana"
+  - match:
+    - headers:
+        host:
+          exact: prometheus.security.enterprise.com
+    route:
+    - destination:
+        host: prometheus.monitoring.svc.cluster.local
+        port:
+          number: 9090
+    timeout: 30s
+    headers:
+      request:
+        add:
+          x-monitoring-context: "prometheus"
+---
+# Canary deployment virtual service
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: threat-detection-canary-vs
+  namespace: production
+spec:
+  hosts:
+  - threat-detection-service.production.svc.cluster.local
+  http:
+  - match:
+    - headers:
+        x-canary-user:
+          exact: "true"
+    route:
+    - destination:
+        host: threat-detection-service.production.svc.cluster.local
+        subset: canary
+      weight: 100
+  - route:
+    - destination:
+        host: threat-detection-service.production.svc.cluster.local
+        subset: stable
+      weight: 90
+    - destination:
+        host: threat-detection-service.production.svc.cluster.local
+        subset: canary
+      weight: 10
+---
+# Fault injection for testing
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: fault-injection-vs
+  namespace: testing
+spec:
+  hosts:
+  - test-service.testing.svc.cluster.local
+  http:
+  - match:
+    - headers:
+        x-test-fault:
+          exact: "delay"
+    fault:
+      delay:
+        percentage:
+          value: 50
+        fixedDelay: 5s
+    route:
+    - destination:
+        host: test-service.testing.svc.cluster.local
+  - match:
+    - headers:
+        x-test-fault:
+          exact: "abort"
+    fault:
+      abort:
+        percentage:
+          value: 25
+        httpStatus: 500
+    route:
+    - destination:
+        host: test-service.testing.svc.cluster.local
+  - route:
+    - destination:
+        host: test-service.testing.svc.cluster.local

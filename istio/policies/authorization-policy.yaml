@@ -1,0 +1,201 @@
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: deny-all-default
+  namespace: production
+spec:
+  # Default deny-all policy - explicit allow required
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: frontend-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: frontend
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"]
+  - to:
+    - operation:
+        methods: ["GET", "POST"]
+        paths: ["/api/*", "/health", "/metrics"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: backend-api-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: backend-api
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/production/sa/frontend-service-account"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        paths: ["/api/v1/*"]
+    when:
+    - key: request.headers[authorization]
+      values: ["Bearer *"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: database-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: database
+  rules:
+  - from:
+    - source:
+        principals: 
+        - "cluster.local/ns/production/sa/backend-api-service-account"
+        - "cluster.local/ns/production/sa/analytics-service-account"
+    to:
+    - operation:
+        ports: ["5432", "3306"]
+    when:
+    - key: source.ip
+      values: ["10.0.0.0/8", "172.16.0.0/12"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: payment-service-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: payment-service
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/production/sa/backend-api-service-account"]
+    to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/payment/process", "/payment/validate"]
+    when:
+    - key: request.headers[x-user-role]
+      values: ["authenticated"]
+    - key: request.headers[x-request-id]
+      notValues: [""]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: admin-access
+  namespace: admin
+spec:
+  selector:
+    matchLabels:
+      app: admin-dashboard
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/admin/sa/admin-service-account"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+    when:
+    - key: request.headers[x-admin-role]
+      values: ["super-admin", "security-admin"]
+    - key: source.ip
+      values: ["10.0.1.0/24"]  # Admin network only
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: monitoring-access
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      app: prometheus
+  rules:
+  - from:
+    - source:
+        principals: 
+        - "cluster.local/ns/monitoring/sa/prometheus-service-account"
+        - "cluster.local/ns/monitoring/sa/grafana-service-account"
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/metrics", "/stats/prometheus"]
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: logging-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: log-collector
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/logging/sa/fluentd-service-account"]
+    to:
+    - operation:
+        methods: ["POST"]
+        paths: ["/logs/ingest"]
+---
+# Time-based access control for maintenance windows
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: maintenance-window-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      maintenance: "true"
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/admin/sa/maintenance-service-account"]
+    when:
+    - key: request.time
+      values: ["02:00", "04:00"]  # 2-4 AM maintenance window
+---
+# Geo-based access restrictions
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: geo-restricted-access
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      geo-restricted: "true"
+  rules:
+  - from:
+    - source:
+        remoteIpBlocks: ["203.0.113.0/24", "198.51.100.0/24"]  # Allowed countries
+  action: ALLOW
+---
+# Rate limiting policy
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: rate-limit-policy
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      rate-limited: "true"
+  rules:
+  - when:
+    - key: request.headers[x-rate-limit-exceeded]
+      values: ["true"]
+  action: DENY

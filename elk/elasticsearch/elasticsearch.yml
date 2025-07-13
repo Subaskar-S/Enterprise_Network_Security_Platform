@@ -1,0 +1,96 @@
+# Elasticsearch Configuration for Enterprise Security Platform
+# Optimized for high-performance security log ingestion and search
+
+cluster.name: enterprise-security-cluster
+node.name: security-node-1
+node.roles: [ master, data, ingest, ml ]
+
+# Network settings
+network.host: 0.0.0.0
+http.port: 9200
+transport.port: 9300
+
+# Discovery settings for cluster
+discovery.type: single-node
+# For multi-node cluster:
+# discovery.seed_hosts: ["es-node-1", "es-node-2", "es-node-3"]
+# cluster.initial_master_nodes: ["security-node-1", "security-node-2", "security-node-3"]
+
+# Path settings
+path.data: /var/lib/elasticsearch
+path.logs: /var/log/elasticsearch
+path.repo: ["/var/lib/elasticsearch/backups"]
+
+# Memory settings
+bootstrap.memory_lock: true
+
+# Security settings
+xpack.security.enabled: true
+xpack.security.transport.ssl.enabled: true
+xpack.security.transport.ssl.verification_mode: certificate
+xpack.security.transport.ssl.client_authentication: required
+xpack.security.transport.ssl.keystore.path: elastic-certificates.p12
+xpack.security.transport.ssl.truststore.path: elastic-certificates.p12
+
+xpack.security.http.ssl.enabled: true
+xpack.security.http.ssl.keystore.path: elastic-certificates.p12
+
+# Monitoring
+xpack.monitoring.collection.enabled: true
+
+# Machine Learning
+xpack.ml.enabled: true
+xpack.ml.max_machine_memory_percent: 30
+
+# Index lifecycle management
+xpack.ilm.enabled: true
+
+# Performance tuning
+indices.memory.index_buffer_size: 20%
+indices.memory.min_index_buffer_size: 96mb
+
+# Thread pool settings
+thread_pool:
+  write:
+    size: 8
+    queue_size: 1000
+  search:
+    size: 13
+    queue_size: 1000
+  get:
+    size: 8
+    queue_size: 1000
+
+# Index settings
+index:
+  number_of_shards: 3
+  number_of_replicas: 1
+  refresh_interval: 5s
+  max_result_window: 50000
+
+# Circuit breaker settings
+indices.breaker.total.limit: 70%
+indices.breaker.request.limit: 40%
+indices.breaker.fielddata.limit: 40%
+
+# Search settings
+search.max_buckets: 65536
+search.allow_expensive_queries: false
+
+# Cluster settings
+cluster.routing.allocation.disk.threshold_enabled: true
+cluster.routing.allocation.disk.watermark.low: 85%
+cluster.routing.allocation.disk.watermark.high: 90%
+cluster.routing.allocation.disk.watermark.flood_stage: 95%
+
+# Action settings
+action.destructive_requires_name: true
+action.auto_create_index: +security-*,+logs-*,+metrics-*,-*
+
+# Logging
+logger.org.elasticsearch.deprecation: warn
+logger.org.elasticsearch.transport: info
+logger.org.elasticsearch.discovery: info
+
+# Custom index templates for security data
+# These will be applied via API calls during setup
