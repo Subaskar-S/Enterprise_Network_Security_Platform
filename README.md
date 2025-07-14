@@ -97,6 +97,40 @@ cd enterprise-network-security-platform
 ./scripts/monitoring/health-check.sh
 ```
 
+## 🚀 Quick Start
+
+### Prerequisites
+- Docker and Docker Compose
+- 16GB+ RAM recommended
+- 100GB+ storage space
+- Python 3.9+ (for AI components)
+- Node.js 16+ (for dashboard)
+
+### Installation
+```bash
+git clone https://github.com/your-org/enterprise-network-security-platform.git
+cd enterprise-network-security-platform
+
+# Copy and configure environment
+cp .env.example .env
+# Edit .env with your configuration
+
+# Deploy the platform
+chmod +x scripts/deployment/deploy.sh
+./scripts/deployment/deploy.sh
+```
+
+### Access Points
+- **Security Dashboard**: http://localhost:3001
+- **Kibana Analytics**: http://localhost:5601
+- **Grafana Metrics**: http://localhost:3000
+- **API Gateway**: http://localhost:8000
+
+### Default Credentials
+- **Grafana**: admin/changeme
+- **Kibana**: elastic/changeme
+- **Dashboard**: admin/admin (first login)
+
 ## 📊 Performance Metrics
 
 - **Latency Impact**: <1ms additional latency

@@ -1,0 +1,411 @@
+<?xml version="1.0"?>
+<!-- pfSense Enterprise Security Platform Firewall Rules Configuration -->
+<pfsense>
+  <version>21.05</version>
+  <lastchange></lastchange>
+  
+  <!-- Firewall Rules Configuration -->
+  <filter>
+    <!-- WAN Interface Rules -->
+    <rule>
+      <id>wan_block_all_default</id>
+      <tracker>1001</tracker>
+      <type>block</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <tag></tag>
+      <tagged></tagged>
+      <max></max>
+      <max-src-nodes></max-src-nodes>
+      <max-src-conn></max-src-conn>
+      <max-src-states></max-src-states>
+      <statetimeout></statetimeout>
+      <statetype>keep state</statetype>
+      <os></os>
+      <protocol>any</protocol>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <any>1</any>
+      </destination>
+      <descr>Block all traffic by default (implicit deny)</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Allow HTTPS for Security Platform -->
+    <rule>
+      <id>wan_allow_https_security</id>
+      <tracker>1002</tracker>
+      <type>pass</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <network>lan</network>
+        <port>443</port>
+      </destination>
+      <descr>Allow HTTPS access to security platform</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Allow SSH for Management (Restricted IPs) -->
+    <rule>
+      <id>wan_allow_ssh_mgmt</id>
+      <tracker>1003</tracker>
+      <type>pass</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <address>203.0.113.0/24</address> <!-- Management network -->
+      </source>
+      <destination>
+        <network>lan</network>
+        <port>22</port>
+      </destination>
+      <descr>Allow SSH from management network only</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Block Known Malicious IPs -->
+    <rule>
+      <id>wan_block_threat_intel</id>
+      <tracker>1004</tracker>
+      <type>block</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>any</protocol>
+      <source>
+        <address>threat_intel_blocklist</address>
+      </source>
+      <destination>
+        <any>1</any>
+      </destination>
+      <descr>Block traffic from threat intelligence sources</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Rate Limiting for HTTP/HTTPS -->
+    <rule>
+      <id>wan_rate_limit_http</id>
+      <tracker>1005</tracker>
+      <type>pass</type>
+      <interface>wan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <network>lan</network>
+        <port>80</port>
+      </destination>
+      <max-src-conn>10</max-src-conn>
+      <max-src-conn-rate>5/60</max-src-conn-rate>
+      <descr>Rate limit HTTP connections (10 concurrent, 5 per minute)</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- LAN Interface Rules -->
+    <rule>
+      <id>lan_allow_outbound_web</id>
+      <tracker>2001</tracker>
+      <type>pass</type>
+      <interface>lan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <network>lan</network>
+      </source>
+      <destination>
+        <any>1</any>
+        <port>80</port>
+        <port>443</port>
+      </destination>
+      <descr>Allow outbound web traffic</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Block P2P and File Sharing -->
+    <rule>
+      <id>lan_block_p2p</id>
+      <tracker>2002</tracker>
+      <type>block</type>
+      <interface>lan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <network>lan</network>
+      </source>
+      <destination>
+        <any>1</any>
+        <port>6881:6999</port> <!-- BitTorrent -->
+        <port>4662</port>      <!-- eMule -->
+        <port>1214</port>      <!-- Kazaa -->
+      </destination>
+      <descr>Block P2P and file sharing protocols</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- DMZ Interface Rules -->
+    <rule>
+      <id>dmz_allow_web_services</id>
+      <tracker>3001</tracker>
+      <type>pass</type>
+      <interface>dmz</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <network>dmz</network>
+        <port>80</port>
+        <port>443</port>
+      </destination>
+      <descr>Allow web traffic to DMZ services</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Block DMZ to LAN Communication -->
+    <rule>
+      <id>dmz_block_to_lan</id>
+      <tracker>3002</tracker>
+      <type>block</type>
+      <interface>dmz</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>any</protocol>
+      <source>
+        <network>dmz</network>
+      </source>
+      <destination>
+        <network>lan</network>
+      </destination>
+      <descr>Block DMZ to LAN communication</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Guest Network Rules -->
+    <rule>
+      <id>guest_allow_internet_only</id>
+      <tracker>4001</tracker>
+      <type>pass</type>
+      <interface>guest</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <network>guest</network>
+      </source>
+      <destination>
+        <any>1</any>
+        <port>80</port>
+        <port>443</port>
+        <port>53</port>
+      </destination>
+      <descr>Allow guest network internet access only</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Block Guest to Internal Networks -->
+    <rule>
+      <id>guest_block_internal</id>
+      <tracker>4002</tracker>
+      <type>block</type>
+      <interface>guest</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>any</protocol>
+      <source>
+        <network>guest</network>
+      </source>
+      <destination>
+        <network>lan</network>
+        <network>dmz</network>
+      </destination>
+      <descr>Block guest access to internal networks</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- VPN Interface Rules -->
+    <rule>
+      <id>vpn_allow_management</id>
+      <tracker>5001</tracker>
+      <type>pass</type>
+      <interface>openvpn</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <network>openvpn</network>
+      </source>
+      <destination>
+        <network>lan</network>
+        <port>22</port>
+        <port>3389</port>
+        <port>443</port>
+      </destination>
+      <descr>Allow VPN users management access</descr>
+      <log>1</log>
+    </rule>
+    
+    <!-- Anti-Lockout Rule -->
+    <rule>
+      <id>anti_lockout</id>
+      <tracker>9999</tracker>
+      <type>pass</type>
+      <interface>lan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <protocol>tcp</protocol>
+      <source>
+        <network>lan</network>
+      </source>
+      <destination>
+        <network>lan</network>
+        <port>443</port>
+      </destination>
+      <descr>Anti-lockout rule for web interface</descr>
+      <log>0</log>
+    </rule>
+  </filter>
+  
+  <!-- NAT Rules -->
+  <nat>
+    <!-- Port Forward for Security Platform HTTPS -->
+    <rule>
+      <id>nat_security_platform_https</id>
+      <tracker>6001</tracker>
+      <interface>wan</interface>
+      <protocol>tcp</protocol>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <network>wan</network>
+        <port>443</port>
+      </destination>
+      <target>10.0.1.100</target>
+      <local-port>443</local-port>
+      <descr>Port forward HTTPS to security platform</descr>
+    </rule>
+    
+    <!-- Port Forward for Kibana -->
+    <rule>
+      <id>nat_kibana</id>
+      <tracker>6002</tracker>
+      <interface>wan</interface>
+      <protocol>tcp</protocol>
+      <source>
+        <address>203.0.113.0/24</address> <!-- Management network only -->
+      </source>
+      <destination>
+        <network>wan</network>
+        <port>5601</port>
+      </destination>
+      <target>10.0.1.101</target>
+      <local-port>5601</local-port>
+      <descr>Port forward Kibana for management network</descr>
+    </rule>
+    
+    <!-- Port Forward for Grafana -->
+    <rule>
+      <id>nat_grafana</id>
+      <tracker>6003</tracker>
+      <interface>wan</interface>
+      <protocol>tcp</protocol>
+      <source>
+        <address>203.0.113.0/24</address> <!-- Management network only -->
+      </source>
+      <destination>
+        <network>wan</network>
+        <port>3000</port>
+      </destination>
+      <target>10.0.1.102</target>
+      <local-port>3000</local-port>
+      <descr>Port forward Grafana for management network</descr>
+    </rule>
+  </nat>
+  
+  <!-- Aliases for IP Groups -->
+  <aliases>
+    <alias>
+      <name>threat_intel_blocklist</name>
+      <type>network</type>
+      <address>
+        <!-- These would be populated by threat intelligence feeds -->
+        <item>192.0.2.0/24</item>
+        <item>198.51.100.0/24</item>
+        <item>203.0.113.0/24</item>
+      </address>
+      <descr>Threat intelligence IP blocklist</descr>
+      <detail>Automatically updated from threat feeds</detail>
+    </alias>
+    
+    <alias>
+      <name>management_networks</name>
+      <type>network</type>
+      <address>
+        <item>203.0.113.0/24</item>
+        <item>198.51.100.0/24</item>
+      </address>
+      <descr>Authorized management networks</descr>
+    </alias>
+    
+    <alias>
+      <name>security_services</name>
+      <type>host</type>
+      <address>
+        <item>10.0.1.100</item> <!-- Security Platform -->
+        <item>10.0.1.101</item> <!-- Kibana -->
+        <item>10.0.1.102</item> <!-- Grafana -->
+        <item>10.0.1.103</item> <!-- Elasticsearch -->
+      </address>
+      <descr>Security platform service IPs</descr>
+    </alias>
+    
+    <alias>
+      <name>database_servers</name>
+      <type>network</type>
+      <address>
+        <item>10.0.2.0/24</item>
+      </address>
+      <descr>Database server subnet</descr>
+    </alias>
+    
+    <alias>
+      <name>web_servers</name>
+      <type>network</type>
+      <address>
+        <item>10.0.3.0/24</item>
+      </address>
+      <descr>Web server subnet</descr>
+    </alias>
+  </aliases>
+  
+  <!-- Traffic Shaper Rules -->
+  <shaper>
+    <rule>
+      <id>shape_security_traffic</id>
+      <interface>wan</interface>
+      <source>
+        <any>1</any>
+      </source>
+      <destination>
+        <address>security_services</address>
+      </destination>
+      <target>security_queue</target>
+      <descr>Prioritize security platform traffic</descr>
+    </rule>
+    
+    <queue>
+      <name>security_queue</name>
+      <interface>wan</interface>
+      <bandwidth>100</bandwidth>
+      <bandwidthtype>Mb</bandwidthtype>
+      <priority>7</priority>
+      <qlimit>1000</qlimit>
+      <descr>High priority queue for security traffic</descr>
+    </queue>
+  </shaper>
+</pfsense>
