@@ -277,8 +277,8 @@ services:
   # API Gateway
   api-gateway:
     build:
-      context: ./api
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: Dockerfile.api-gateway
     container_name: api-gateway
     environment:
       - ELASTICSEARCH_HOST=elasticsearch:9200
